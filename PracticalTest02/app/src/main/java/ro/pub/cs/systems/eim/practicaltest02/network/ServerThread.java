@@ -6,17 +6,27 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashMap;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.io.*;
+import java.net.*;
 
 import cz.msebera.android.httpclient.client.ClientProtocolException;
 import ro.pub.cs.systems.eim.practicaltest02.general.Constants;
 import ro.pub.cs.systems.eim.practicaltest02.model.WeatherForecastInformation;
+import ro.pub.cs.systems.eim.practicaltest02.model.Alarma;
 
 public class ServerThread extends Thread {
 
     private int port = 0;
     private ServerSocket serverSocket = null;
 
-    private HashMap<String, WeatherForecastInformation> data = null;
+    private HashMap<String, Alarma> data = null;
+    private String message;
+    //private Alarma data = null;
 
     public ServerThread(int port) {
         this.port = port;
@@ -47,11 +57,53 @@ public class ServerThread extends Thread {
         return serverSocket;
     }
 
-    public synchronized void setData(String city, WeatherForecastInformation weatherForecastInformation) {
-        this.data.put(city, weatherForecastInformation);
+    public synchronized void setData(String ip, Alarma al) {
+        this.data.put(ip, al);
     }
 
-    public synchronized HashMap<String, WeatherForecastInformation> getData() {
+    public synchronized String getMessage () {
+        return message;
+    }
+
+    public synchronized void sendCommand(String ip, String command) {
+        if (command.contains("set,")) {
+            String[] tokens = command.split(",");
+            Alarma al = new Alarma(tokens[1], tokens[2]);
+            this.data.put(ip, al);
+            Log.e(Constants.TAG, "S-a setat alarma pentru: " + ip + " cu ora: " + data.get(ip).toString());
+            message = "S-a setat alarma pentru: " + ip + " cu ora: " + data.get(ip).toString();
+        } else if (command.contains("reset")) {
+            if(this.data.containsKey(ip) != false) {
+                this.data.remove(ip);
+            }
+            message = "Alarm removed";
+        } else if (command.contains("poll")) {
+            try {
+                Socket soc = new Socket("utcnist.colorado.edu"/*InetAddress.getLocalHost()*/, 13);
+                BufferedReader in = new BufferedReader(new InputStreamReader(soc.getInputStream()));
+                //System.out.println(in.readLine());
+                Log.e(Constants.TAG, "TIMSADSA: " + in.readLine());
+            } catch (IOException e){
+                if (Constants.DEBUG) {
+                    e.printStackTrace();
+                }
+            }
+            int currenthour = 19;
+            int currentminute = 30;
+            if (data.containsKey(ip) == false) {
+                message = "none";
+            } else {
+                Alarma al = data.get(ip);
+                if (Integer.parseInt(al.getH()) <= currenthour && Integer.parseInt(al.getM()) <= currentminute) {
+                    message = "inactive";
+                } else {
+                    message = "active";
+                }
+            }
+        }
+    }
+
+    public synchronized HashMap<String, Alarma> getData() {
         return data;
     }
 
